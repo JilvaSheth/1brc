@@ -17,12 +17,18 @@ package dev.morling.onebrc;
 
 import static java.util.stream.Collectors.*;
 
-import java.io.IOException;
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collector;
+import java.util.stream.Stream;
 
 public class CalculateAverage {
 
@@ -60,7 +66,7 @@ public class CalculateAverage {
         // .stream()
         // .collect(toMap(e -> e.getKey(), e -> Math.round(e.getValue() * 10.0) / 10.0)));
         // System.out.println(measurements1);
-
+        long start = System.currentTimeMillis();
         Collector<Measurement, MeasurementAggregator, ResultRow> collector = Collector.of(
                 MeasurementAggregator::new,
                 (a, m) -> {
@@ -82,10 +88,29 @@ public class CalculateAverage {
                     return new ResultRow(agg.min, agg.sum / agg.count, agg.max);
                 });
 
-        Map<String, ResultRow> measurements = new TreeMap<>(Files.lines(Paths.get(FILE))
+       /* Map<String, ResultRow> measurements = new TreeMap<>(Files.lines(Paths.get(FILE)).parallel()
                 .map(l -> new Measurement(l.split(";")))
-                .collect(groupingBy(m -> m.station(), collector)));
+                .collect(groupingByConcurrent(m -> m.station(), collector)));*/
 
-        System.out.println(measurements);
+        Map<String, ResultRow> measurementsMap = new TreeMap<>();
+
+        BufferedReader reader = null;
+        try {
+            reader = new BufferedReader(new FileReader(FILE));
+            measurementsMap = reader.lines().parallel()
+                    .map(l -> new Measurement(l.split(";")))
+                    .collect(groupingByConcurrent(m -> m.station(), collector));
+        } finally {
+            try {
+                reader.close();
+            } catch (IOException e) {
+                System.out.printf("File IOException", e);
+            }
+        }
+
+
+        System.out.println(measurementsMap);
+        long end = System.currentTimeMillis();
+        System.out.printf("Time Taken %d", (end-start));
     }
 }
